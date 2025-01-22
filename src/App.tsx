@@ -55,14 +55,12 @@ function App() {
           <span>{Math.round(progress)}%</span>
         </div>
       )}
-
       {/* Mostrar los mods descargados */}
       {showDownloadedFiles && (
         <div className="downloaded-mods">
           <p>Mods descargados: {downloadedFiles.join(', ')}</p>
         </div>
       )}
-
       {/* Mostrar los mods actualizados */}
       {showUpdatedFiles && (
         <div className="updated-mods">

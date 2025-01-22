@@ -1,3 +1,4 @@
+
 import { google, drive_v3 } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -70,7 +71,7 @@ totalFiles?: number
 async function downloadMods(progressCallback: (progress: number) => void): Promise<void> {
     const drive = await authorize();
     const res = await drive.files.list({
-      q: "'1q0piiSDuNsFbNUNN6KYtn-3DeLB0YI24' in parents", // Asegúrate de usar tu ID de carpeta
+      q: "'17sPqxHCa5maRP9fwQn8uVOniie1Gy8l5' in parents", // Asegúrate de usar tu ID de carpeta
       fields: "files(id, name)",
     });
   
@@ -114,67 +115,73 @@ async function downloadMods(progressCallback: (progress: number) => void): Promi
   
 
 // Función de sincronización de mods (actualizada para manejar el progreso global)
-async function syncMods(progressCallback: (progress: number) => void): Promise<void> {
+async function syncMods(progressCallback?: (progress: number) => void): Promise<string[]> {
   const drive = await authorize();
+
+  // Obtener lista de archivos en Google Drive
   const res = await drive.files.list({
-    q: "'1q0piiSDuNsFbNUNN6KYtn-3DeLB0YI24' in parents", // Modifica con tu ID de carpeta
+    q: "'17sPqxHCa5maRP9fwQn8uVOniie1Gy8l5' in parents",
     fields: "files(id, name)",
   });
 
-  const driveFiles = res.data.files?.map((file) => file.name?.toLowerCase() || "") || []; // Archivos de Google Drive (en minúsculas)
-  const localFiles = fs.readdirSync(MODS_DIR).map((file) => file.toLowerCase()); // Archivos locales en minúsculas
+  const driveFiles = res.data.files || [];
+  const driveFileNames = driveFiles.map((file) => file.name?.toLowerCase() || "");
 
-  // Filtrar archivos nuevos (existen en Drive pero no localmente)
-  const newMods = res.data.files?.filter(
+  // Obtener lista de archivos locales
+  const localFiles = fs.readdirSync(MODS_DIR).map((file) => file.toLowerCase());
+
+  // Filtrar los archivos que están en local pero no en Google Drive
+  const orphanedFiles = localFiles.filter((localFile) => !driveFileNames.includes(localFile));
+
+  // Filtrar los archivos que están en Google Drive pero no en local (archivos nuevos)
+  const newFiles = driveFiles.filter(
     (file) => !localFiles.includes(file.name?.toLowerCase() || "")
-  ) || [];
+  );
 
-  const totalFiles = newMods.length; // Contamos solo los archivos nuevos
-
-  let globalProgress = 0; // Variable para el progreso total
-
-  // Descargar solo los archivos nuevos
-  const downloadPromises = newMods.map((file) => {
-    const destPath = path.join(MODS_DIR, file.name || ""); // Ruta completa del archivo local
-    const fileId = file.id;
-
-    if (!fileId) {
-      console.warn(`Advertencia: El archivo '${file.name}' no tiene un ID válido.`);
-      return Promise.resolve(); // Omitimos este archivo si no tiene un ID
+ 
+  // Descargar archivos nuevos
+  if (newFiles.length > 0) {
+    let progress = 0;
+    const totalNewFiles = newFiles.length;
+    
+    for (const file of newFiles) {
+      const destPath = path.join(MODS_DIR, file.name || "");
+      //console.log(`Descargando archivo nuevo: ${file.name}`);
+      
+      // Llamar a la función `downloadFile` para descargar el archivo
+      await downloadFile(drive, file.id!, destPath, (fileProgress) => {
+        progress += (1 / totalNewFiles) * fileProgress;
+        progressCallback?.(Math.min(progress, 100));
+      });
+       // Añadir el archivo a la lista de `downloadedFiles` (solo archivos nuevos descargados)
+       updatedFiles.push(file.name || "");
     }
-
-    return downloadFile(
-      drive,
-      fileId,
-      destPath,
-      (progress) => {
-        // Progreso acumulado
-        globalProgress += progress / totalFiles;
-        progressCallback(Math.min(globalProgress, 100)); // Asegurarnos de no superar el 100%
-      },
-      totalFiles
-    );
-  });
-
-  await Promise.all(downloadPromises);
-
-  // Actualizamos la lista de archivos descargados
-  updatedFiles = newMods.map((file) => file.name || "");
-
-  // Eliminar los archivos que ya no están en Google Drive
-  const removedMods = localFiles.filter((localFile) => !driveFiles.includes(localFile));
-  if (removedMods.length > 0) {
-    removedMods.forEach((file) => {
-      try {
-        const filePath = path.join(MODS_DIR, file);
-        fs.unlinkSync(filePath); // Eliminar el archivo
-        console.log(`Archivo eliminado: ${filePath}`);
-      } catch (err) {
-        console.error(`Error eliminando el archivo ${file}:`, err);
-      }
-    });
   }
+  //console.log("lista de mods descargados: "+ updatedFiles);
+  
+   // Eliminar archivos huérfanos
+   if (orphanedFiles.length > 0) {
+    for (const orphan of orphanedFiles) {
+      const orphanPath = path.join(MODS_DIR, orphan);
+      try {
+        fs.unlinkSync(orphanPath);
+        console.log(`Archivo huérfano eliminado: ${orphanPath}`);
+      } catch (err) {
+        console.error(`Error eliminando archivo ${orphan}:`, err);
+      }
+    }
+  }
+
+  // Sincronización terminada
+  if (progressCallback) {
+    progressCallback(100);
+  }
+
+  //console.log("Sincronización de mods completada.");
+  return updatedFiles;
 }
+
 
 // Exportar las listas de mods descargados y actualizados
 export { downloadMods, syncMods, downloadedFiles, updatedFiles };
+

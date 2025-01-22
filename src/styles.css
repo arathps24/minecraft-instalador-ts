@@ -102,8 +102,7 @@ span {
 
 /* 📌 Botones alineados abajo */
 .button-container {
-  position: absolute;
-  bottom: 40px; /* Espacio desde abajo */
+  bottom: 10px; /* Espacio desde abajo */
   display: flex;
   justify-content: center;
   gap: 20px; /* Espacio entre los botones */

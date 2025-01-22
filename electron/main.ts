@@ -130,7 +130,7 @@ ipcMain.handle('update-mods', async () => {
      // Después de la actualización, envía los archivos actualizados
      mainWindow?.webContents.send('updated-files', updatedFiles);
     } else {
-      // Enviar el mensaje si solo se borraron archivos y no hubo actualizaciones
+      // Enviar mensaje si solo se borraron archivos
       mainWindow?.webContents.send("updated-files", "Actualización exitosa");
     }
   } catch (error) {
